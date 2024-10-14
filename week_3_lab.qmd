@@ -2,6 +2,8 @@
 title: "Week 3 Lab"
 format: html
 editor: visual
+editor_options: 
+  chunk_output_type: console
 ---
 
 ## **Set Up**
@@ -24,23 +26,29 @@ Spatial subsetting is the process of converting a spatial object into a new obje
 Let’s start by going back to the New Zealand datasets and find all the high points in the state of Canterbury.
 
 ```{r}
+nz <- spData::nz
+
+nz_height <- spData::nz_height
+
 canterbury <- nz %>%
   filter(Name == "Canterbury")
 
 # subsets nz_heights to just the features that intersect Canterbury
 c_height <- nz_height[canterbury, ]
 
+nz_height1 <- nz_height[canterbury,]
+
 tm_shape(nz) +
   tm_polygons() +
   tm_shape(nz_height) +
-  tm_dots(fill = "red")
+  tm_dots(col = "red")
 
 tm_shape(nz) +
   tm_polygons() +
   tm_shape(canterbury) +
   tm_polygons(fill = "blue") +
   tm_shape(c_height) +
-  tm_dots(fill = "red")
+  tm_dots(col = "red")
 ```
 
 The default is to subset to features that intersect, but we can use other operations, including finding features that do not intersect.
@@ -53,7 +61,7 @@ tm_shape(nz) +
   tm_shape(canterbury) +
   tm_polygons(fill = "blue") +
   tm_shape(outside_height) +
-  tm_dots(fill = "red")
+  tm_dots(col = "red")
 ```
 
 We can perform the same operations using topological operators. These operators return matrices testing the relationship between features.
@@ -70,10 +78,20 @@ tm_shape(nz) +
   tm_shape(canterbury) +
   tm_polygons(fill = "blue") +
   tm_shape(c_height2) +
-  tm_dots(fill = "red")
+  tm_dots(col = "red")
 ```
 
 We can also use the `st_filter` function in **sf**:
+
+Me
+
+```{r}
+nz_height_logical <- st_is_within_distance(nz_height, canterbury,
+                                           dist = units::set_units(1000, "km"),
+                                           sparce = FALSE)
+
+c_heights4 <- nz_height[nz_height_logical,]
+```
 
 ```{r}
 c_height3 <- nz_height %>%
@@ -84,7 +102,7 @@ tm_shape(nz) +
   tm_shape(canterbury) +
   tm_polygons(fill = "blue") +
   tm_shape(c_height3) +
-  tm_dots(fill = "red")
+  tm_dots(col = "red")
 ```
 
 We can change the predicate option to test subset to features that don’t intersect:
@@ -98,7 +116,7 @@ tm_shape(nz) +
   tm_shape(canterbury) +
   tm_polygons(fill = "blue") +
   tm_shape(outside_height2) +
-  tm_dots(fill = "red")
+  tm_dots(col = "red")
 ```
 
 ## **Buffers**
@@ -153,6 +171,49 @@ Where attribute joining depends on both data sets sharing a ‘key’ variable, 
 
 Let’s test this out by creating 50 points randomly distributed across the world and finding out what countries they call in.
 
+ME
+
+```{r}
+st_join(nz_height, nz, join = st_intersects) %>%
+  select(id = t50_fid, elevation, region = Name) %>%
+  group_by(region) %>%
+  summarise(n-points() = n()) %>%
+  st_drop_geometry()
+```
+
+```{r}
+cycle_hire <- spData::cycle_hire
+
+cycle_hire_osm <- spData::cycle_hire_osm
+
+tmap_mode("view")
+
+tm_shape(cycle_hire)+
+  tm_symbols(col = "red", alpha = 0.2) +
+  tm_shape(cycle_hire_osm) +
+  tm_symbols(col = "blue", alpha = 0.2)
+
+tmap_mode("plot")
+
+#print(cycle_hire)
+```
+
+```{r}
+cycle_hire_join <- st_join(cycle_hire, cycle_hire_osm, st_is_within_distance,
+                           dist = units::set_units(20, "m"))
+
+
+```
+
+```{r}
+if (nrow(cycle_hire) == nrow(cycle_hire_join)) {
+  print("join matches original data dimenstions") 
+  } else {
+  warning("join does not match")
+}
+
+```
+
 ```{r}
 set.seed(2018)
 bb <- st_bbox(world)
@@ -169,7 +230,7 @@ random_points <- random_df %>%
 tm_shape(world) +
   tm_fill() +
   tm_shape(random_points) +
-  tm_dots(fill = "red")
+  tm_dots(col = "red")
 ```
 
 Let’s first use spatial subsetting to find just the countries that contain random points.
@@ -191,7 +252,7 @@ random_joined  <- st_join(random_points, world)
 tm_shape(world) +
   tm_fill() +
   tm_shape(random_joined) +
-  tm_dots(fill = "name_long")
+  tm_dots(col = "name_long")
 ```
 
 By default, `st_join` performs a left join. We change this and instead perform an inner join.
@@ -211,6 +272,8 @@ tm_shape(cycle_hire) +
   tm_dots(col = "blue", alpha = 0.5) +
   tm_shape(cycle_hire_osm) +
   tm_dots(col = "red", alpha = 0.5)
+
+
 ```
 
 We can check if any of these points overlap.
@@ -381,3 +444,102 @@ us_states_simp3 <- smoothr::smooth(us_states2163, method = 'ksmooth', smoothness
 tm_shape(us_states_simp3) +
   tm_polygons()
 ```
+
+
+ME
+```{r}
+us_states <- spData::us_states
+regions <- us_states %>%
+  group_by(REGION) %>%
+  summarise(population = sum(total_pop_15, na.rm = TRUE))
+
+tm_shape(regions) +
+  tm_polygons()
+
+
+```
+
+```{r}
+us_west <-us_states[us_states$REGION == "West",]
+
+us_west_union <- st_union(us_west)
+
+texas <- us_states[us_states$NAME == "Texas",]
+texas_union <-(texas)
+
+tm_shape(texas_union) +
+  tm_polygons()
+```
+
+```{r}
+seine <- spData:seine
+seine_buffer
+```
+
+```{r}
+nz_height_buffer <- st_buffer(nz_height, dist = 1000000)
+
+# same as st_filter with st_is_within_distance
+c_height5 <- nz_height_buffer %>%
+  st_filter(y= canterbury, predicate = st_intersects)
+
+#could put a logical test
+```
+
+```{r}
+
+x <- st_sfc(st_point(c(0,1))) %>%
+  st_buffer(.,dist = 1) %>%
+  st_as_sf()
+
+y <- st_sfc(st_point(c(1,1))) %>%
+  st_buffer(.,dist = 1) %>%
+  st_as_sf()
+
+sym_difference <- sym_difference(x,y)
+bbox <- st_union(x,y)
+
+tm_shape(x, bbox = bbox)+
+  tm_borders(col = "red") +
+  tm_shape(y) +
+  tm_borders(col = "blue") +
+  tm_shape(difference) + 
+  tm_fill(col = "purple")
+
+  
+```
+```{r}
+
+bb <- bbox
+
+box <- 
+  
+x_and_y <- 
+
+```
+
+## Centroids
+
+```{r}
+
+nz_centroid <- st_centroid(nz)
+nz_pos <- st_point_on_surface(nz)
+
+tm_shape(nz) +
+  tm_polygons() +
+  tm_shape(nz_centroid) +
+  tm_symbols(col = "red", alpha = 0.5) +
+  tm_shape(nz_pos) +
+  tm_symbols(col = "blue", alpha = 0.5)
+```
+## simplefication
+
+```{r}
+
+seine_simple <- st_simplify(seine, dTolerance = 2000)
+
+tm_shape(seine_simple) +
+  tm_lines()
+```
+
+
